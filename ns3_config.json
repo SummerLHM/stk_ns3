@@ -1,0 +1,27 @@
+{
+  "_comment": "NS3配置文件 - STK与NS3联合仿真",
+  "_version": "1.0",
+  "mode": "shared",
+  "shared_folder": {
+    "name": "sat_sim",
+    "windows_path": "D:\\PycharmProjects\\satelliteProject\\ns3_and_STK_demo",
+    "linux_path": "/mnt/hgfs/sat_sim"
+  },
+  "ns3": {
+    "version": "3.45",
+    "root_path": "/home/wwq/repos_ns3/ns-3-allinone/ns-3.45",
+    "project_path": "/repos_ns3/ns-3-allinone/ns-3.45/scratch/starlink",
+    "script_name": "starlink-sim"
+  },
+  "directories": {
+    "stk_output": "data",
+    "ns3_input": "ns3_input",
+    "ns3_output": "ns3_results"
+  },
+  "simulation": {
+    "sim_time": 10.0,
+    "packet_size": 1024,
+    "data_rate": "5Mbps",
+    "num_flows": 5
+  }
+}
