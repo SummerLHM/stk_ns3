@@ -19,36 +19,11 @@ OUTPUT_DIR="$DATA_DIR/output"
 LOG_DIR="$PROJECT_DIR/logs"
 
 #=============================================================================
-# 共享文件夹配置
+# VMware 共享文件夹配置
 #=============================================================================
 
-# 共享文件夹类型: vmware / virtualbox / none
-SHARED_TYPE="vmware"
-
-# 共享文件夹名称（在VMware/VirtualBox中设置的名称）
-SHARED_NAME="sat_sim"
-
-# VMware共享文件夹路径
-VMWARE_SHARED="/mnt/hgfs/sat_sim"
-
-# VirtualBox共享文件夹路径
-VBOX_SHARED="/media/sf_sat_sim"
-
-# Windows端对应路径（仅供参考）
-WINDOWS_PATH="D:/PycharmProjects/satelliteProject/ns3_and_STK_demo"
-
-# 根据类型自动设置共享路径
-case "$SHARED_TYPE" in
-    vmware)
-        SHARED_PATH="$VMWARE_SHARED"
-        ;;
-    virtualbox)
-        SHARED_PATH="$VBOX_SHARED"
-        ;;
-    *)
-        SHARED_PATH=""
-        ;;
-esac
+# 共享文件夹路径
+SHARED_PATH="/mnt/hgfs/sat_sim"
 
 # 共享文件夹中的子目录
 SHARED_INPUT_DIR="$SHARED_PATH/ns3_input"
