@@ -126,24 +126,4 @@ fi
 # 完成
 #=============================================================================
 
-echo ""
-echo "==========================================="
-echo "  ✅ 环境配置完成!"
-echo "==========================================="
-echo ""
-echo "配置信息:"
-echo "  NS3路径:    $NS3_ROOT"
-echo "  项目路径:   $SCRIPT_DIR"
-echo "  共享文件夹: /mnt/hgfs/sat_sim"
-echo ""
-echo "Windows端对应路径:"
-echo "  D:\\PycharmProjects\\satelliteProject\\ns3_and_STK_demo"
-echo ""
-echo "目录映射:"
-echo "  ns3_input/   -> 输入数据 (Windows生成)"
-echo "  ns3_results/ -> 输出结果 (NS3生成)"
-echo ""
-echo "下一步:"
-echo "  1. 运行测试: bash quick_test.sh"
-echo "  2. 正式运行: bash run.sh"
-echo ""
+
