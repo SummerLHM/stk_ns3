@@ -10,32 +10,6 @@ source "$SCRIPT_DIR/config.sh"
 source "$SCRIPT_DIR/utils.sh"
 
 #=============================================================================
-# 命令行帮助
-#=============================================================================
-
-show_help() {
-    cat << EOF
-
-🛰️  Starlink NS3 仿真运行脚本 (NS-3.45)
-
-用法: bash run.sh [选项]
-
-选项:
-  -i, --input FILE        链路参数文件名, 默认: $LINK_PARAMS_FILE
-  -o, --output FILE       输出文件名, 默认: $OUTPUT_FILE
-      --no-build          跳过编译步骤
-      --no-sync           不同步共享文件夹
-  -h, --help              显示帮助
-
-示例:
-  bash run.sh                          # 默认参数
-  bash run.sh --no-build               # 跳过编译
-  bash run.sh -i link_params_slice_0.csv -o flow_results_slice_0.csv
-
-EOF
-}
-
-#=============================================================================
 # 参数解析
 #=============================================================================
 
@@ -44,12 +18,11 @@ NO_SYNC=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -i|--input)       LINK_PARAMS_FILE="$2"; shift 2 ;;
-        -o|--output)      OUTPUT_FILE="$2"; shift 2 ;;
-        --no-build)       NO_BUILD=true; shift ;;
-        --no-sync)        NO_SYNC=true; shift ;;
-        -h|--help)        show_help; exit 0 ;;
-        *) log_error "未知参数: $1"; show_help; exit 1 ;;
+        -i|--input)   LINK_PARAMS_FILE="$2"; shift 2 ;;
+        -o|--output)  OUTPUT_FILE="$2"; shift 2 ;;
+        --no-build)   NO_BUILD=true; shift ;;
+        --no-sync)    NO_SYNC=true; shift ;;
+        *) shift ;;
     esac
 done
 
@@ -195,7 +168,6 @@ if [ -f "$OUTPUT_PATH" ]; then
     show_csv_preview "$OUTPUT_PATH" 10
     show_summary "$OUTPUT_PATH"
     
-    # 同步到共享文件夹
     if [ "$NO_SYNC" = false ] && check_shared_available "$SHARED_PATH"; then
         ensure_dir "$SHARED_OUTPUT_DIR"
         cp "$OUTPUT_PATH" "$SHARED_OUTPUT_DIR/"
