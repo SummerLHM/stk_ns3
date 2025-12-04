@@ -78,12 +78,11 @@ class NS3ResultCollector:
         self.summary: Optional[SimulationSummary] = None
         # IP 到卫星名称的映射
         self.ip_to_satellite: Dict[str, str] = {}
-        # 链路详细映射
-        self.link_mapping: List[Dict] = []
         # 创建目录，如果目录已存则跳过
         os.makedirs(self.ns3_output_dir, exist_ok=True)
 
     """读取文件内容，并把JSON内容反序列化成Python字典"""
+
     def _load_config(self, config_file: str) -> Dict:
         if os.path.exists(config_file):
             try:
@@ -92,57 +91,6 @@ class NS3ResultCollector:
             except:
                 pass
         return {}
-
-    def load_ip_mapping(self) -> bool:
-        """加载 IP 到卫星名称的映射"""
-        print("\n📂 加载IP映射...")
-
-        # 方法1: 从简单映射文件加载
-        simple_mapping_file = os.path.join(self.ns3_input_dir, "ip_to_satellite.json")
-        if os.path.exists(simple_mapping_file):
-            try:
-                with open(simple_mapping_file, 'r', encoding='utf-8') as f:
-                    self.ip_to_satellite = json.load(f)
-                print(f"   ✅ 从 ip_to_satellite.json 加载: {len(self.ip_to_satellite)} 条映射")
-                return True
-            except Exception as e:
-                print(f"   ⚠️ 加载失败: {e}")
-
-        # 方法2: 从详细链路映射文件加载
-        detailed_mapping_file = os.path.join(self.ns3_input_dir, "link_ip_mapping.json")
-        if os.path.exists(detailed_mapping_file):
-            try:
-                with open(detailed_mapping_file, 'r', encoding='utf-8') as f:
-                    self.link_mapping = json.load(f)
-
-                # 构建 IP -> 卫星名称映射
-                for link in self.link_mapping:
-                    self.ip_to_satellite[link["src_ip"]] = link["src_satellite"]
-                    self.ip_to_satellite[link["dst_ip"]] = link["dst_satellite"]
-
-                print(f"   ✅ 从 link_ip_mapping.json 加载: {len(self.ip_to_satellite)} 条映射")
-                return True
-            except Exception as e:
-                print(f"   ⚠️ 加载失败: {e}")
-
-        # 方法3: 从 link_params.csv 推断
-        link_params_file = os.path.join(self.ns3_input_dir, "link_params.csv")
-        if os.path.exists(link_params_file):
-            try:
-                df = pd.read_csv(link_params_file)
-                for i, row in df.iterrows():
-                    src_ip = f"10.0.{i}.1"
-                    dst_ip = f"10.0.{i}.2"
-                    self.ip_to_satellite[src_ip] = str(row.get('src_name', f'Node_{row.get("src_id", i)}'))
-                    self.ip_to_satellite[dst_ip] = str(row.get('dst_name', f'Node_{row.get("dst_id", i)}'))
-
-                print(f"   ✅ 从 link_params.csv 推断: {len(self.ip_to_satellite)} 条映射")
-                return True
-            except Exception as e:
-                print(f"   ⚠️ 推断失败: {e}")
-
-        print("   ❌ 未找到任何映射文件")
-        return False
 
     def collect_results(self, result_file: str = None) -> Optional[pd.DataFrame]:
         """收集NS3仿真结果"""
@@ -184,6 +132,7 @@ class NS3ResultCollector:
                 print(f"   ⚠️ 解析失败: {e}")
 
         return df
+
     def generate_summary(self) -> SimulationSummary:
         """生成仿真结果摘要"""
         if not self.results:
@@ -331,72 +280,6 @@ class NS3SimulationManager:
 
         return self.collector.summary
 
-    def generate_mock_results(self) -> pd.DataFrame:
-        """生成模拟结果（用于测试）"""
-        print("\n📝 生成模拟测试数据...")
-
-        # 同时生成模拟的 IP 映射
-        mock_mapping = {}
-        mock_data = []
-
-        satellite_pairs = [
-            ("Sat_0_0", "Sat_0_1"),
-            ("Sat_1_0", "Sat_1_1"),
-            ("Sat_2_0", "Sat_2_1"),
-            ("Sat_3_0", "Sat_3_1"),
-            ("Sat_4_0", "Sat_4_1"),
-        ]
-
-        for i, (src_sat, dst_sat) in enumerate(satellite_pairs):
-            src_ip = f"10.0.{i}.1"
-            dst_ip = f"10.0.{i}.2"
-
-            mock_mapping[src_ip] = src_sat
-            mock_mapping[dst_ip] = dst_sat
-
-            # 随机生成一些完全丢包的流
-            if i in [1, 4]:  # 流2和流5完全丢包
-                mock_data.append({
-                    'FlowId': i + 1,
-                    'SrcAddr': src_ip,
-                    'DstAddr': dst_ip,
-                    'TxPackets': 5187,
-                    'RxPackets': 0,
-                    'LostPackets': 5187,
-                    'Throughput_Mbps': 0.0,
-                    'MeanDelay_ms': 0.0,
-                    'MeanJitter_ms': 0.0,
-                    'PacketLossRate': 1.0
-                })
-            else:
-                mock_data.append({
-                    'FlowId': i + 1,
-                    'SrcAddr': src_ip,
-                    'DstAddr': dst_ip,
-                    'TxPackets': 5187,
-                    'RxPackets': 2000 + np.random.randint(0, 100),
-                    'LostPackets': 3100 + np.random.randint(0, 100),
-                    'Throughput_Mbps': 1.9 + np.random.random() * 0.2,
-                    'MeanDelay_ms': 13.0,
-                    'MeanJitter_ms': 0.0,
-                    'PacketLossRate': 0.6 + np.random.random() * 0.02
-                })
-
-        # 保存模拟的 IP 映射
-        os.makedirs(self.collector.ns3_input_dir, exist_ok=True)
-        mapping_file = os.path.join(self.collector.ns3_input_dir, "ip_to_satellite.json")
-        with open(mapping_file, 'w', encoding='utf-8') as f:
-            json.dump(mock_mapping, f, indent=2)
-        print(f"   ✅ 模拟IP映射已保存: {mapping_file}")
-
-        # 保存模拟的流结果
-        df = pd.DataFrame(mock_data)
-        output_file = os.path.join(self.collector.ns3_output_dir, "flow_results.csv")
-        df.to_csv(output_file, index=False)
-        print(f"   ✅ 模拟数据已保存: {output_file}")
-
-        return df
-
 
 if __name__ == "__main__":
     manager = NS3SimulationManager()
@@ -404,6 +287,4 @@ if __name__ == "__main__":
     if manager.check_results_available():
         manager.analyze_results()
     else:
-        print("⚠️ NS3结果不可用，生成模拟数据进行测试...")
-        manager.generate_mock_results()
-        manager.analyze_results()
+        print("⚠️ NS3结果不可用")
