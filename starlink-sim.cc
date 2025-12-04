@@ -267,18 +267,12 @@ int main(int argc, char *argv[]) {
     std::string demandFile = "scratch/starlink/data/input/traffic_demands.csv";
     std::string outFile = "scratch/starlink/data/output/flow_results.csv";
     double simTime = 10.0;
-    uint32_t pktSize = 1024;
-    std::string defaultRate = "2Mbps";
-    uint32_t nFlows = 5;
     
     CommandLine cmd(__FILE__);
     cmd.AddValue("linkParams", "Link params CSV", linkFile);
     cmd.AddValue("demands", "Traffic demands CSV", demandFile);
     cmd.AddValue("output", "Output CSV", outFile);
     cmd.AddValue("simTime", "Sim time (s)", simTime);
-    cmd.AddValue("packetSize", "Packet size", pktSize);
-    cmd.AddValue("dataRate", "Default data rate", defaultRate);
-    cmd.AddValue("numFlows", "Num flows", nFlows);
     cmd.Parse(argc, argv);
     
     std::cout << "Links:   " << linkFile << "\nOutput:  " << outFile << "\n";
@@ -291,12 +285,13 @@ int main(int argc, char *argv[]) {
     routeFile << "FlowId,SrcNode,DstNode,HopCount,PathString\n";
     
     if (!LoadLinks(linkFile)) return 1;
+    if (!LoadDemands(demandFile)) return 1;
+    
     g_linkStats.resize(g_links.size());
     for (size_t i = 0; i < g_links.size(); ++i) {
         g_linkStats[i].srcName = g_links[i].srcName;
         g_linkStats[i].dstName = g_links[i].dstName;
     }
-    LoadDemands(demandFile);
     
     // 创建节点
     g_nodes.Create(g_numNodes);
@@ -374,82 +369,77 @@ int main(int argc, char *argv[]) {
         sub++;
     }
     
-    // 【不使用自动路由】
-    // Ipv4GlobalRoutingHelper::PopulateRoutingTables();
-    
     // 创建流并设置静态路由
     uint16_t port = 9000;
-    if (!g_demands.empty()) {
-        std::cout << "Creating flows with static routing...\n";
+    std::cout << "Creating flows with static routing...\n";
+    
+    for (const auto& demand : g_demands) {
+        uint32_t src = demand.srcId;
+        uint32_t dst = demand.dstId;
         
-        for (const auto& demand : g_demands) {
-            uint32_t src = demand.srcId;
-            uint32_t dst = demand.dstId;
-            
-            if (g_nodeFirstIp.find(dst) == g_nodeFirstIp.end()) continue;
-            
-            // 计算最短路径
-            DijkstraResult dijkstra = Dijkstra(src, g_numNodes);
-            std::vector<uint32_t> path = GetPath(src, dst, dijkstra);
-            
-            if (path.empty() || path.size() < 2) continue;
+        if (g_nodeFirstIp.find(dst) == g_nodeFirstIp.end()) continue;
+        
+        // 计算最短路径
+        DijkstraResult dijkstra = Dijkstra(src, g_numNodes);
+        std::vector<uint32_t> path = GetPath(src, dst, dijkstra);
+        
+        if (path.empty() || path.size() < 2) continue;
 
-            // 记录路径
-            std::ostringstream pathSs;
-            for (size_t j = 0; j < path.size(); j++) {
-                pathSs << GetNodeName(path[j]);
-                if (j < path.size() - 1) pathSs << "->";
-            }
-            routeFile << (demand.demandId + 1) << "," << demand.srcNode << "," << demand.dstNode << ","
-                      << (path.size() - 1) << "," << pathSs.str() << "\n";
-            
-            std::cout << "  Flow " << demand.demandId << ": " << pathSs.str() << "\n";
-
-            // 获取目的地址
-            Ipv4Address destAddr = g_nodeFirstIp[dst];
-            
-            // 【关键】为路径上的每一跳设置静态路由
-            for (size_t hop = 0; hop < path.size() - 1; hop++) {
-                uint32_t currentNode = path[hop];
-                uint32_t nextNode = path[hop + 1];
-                
-                // 查找接口信息
-                auto it = g_linkInterface.find({currentNode, nextNode});
-                if (it == g_linkInterface.end()) {
-                    std::cerr << "Warning: No interface found for " << currentNode << " -> " << nextNode << "\n";
-                    continue;
-                }
-                
-                uint32_t ifIndex = it->second.first;
-                Ipv4Address nextHopAddr = it->second.second;
-                
-                // 获取静态路由
-                Ptr<Ipv4> ipv4Node = g_nodes.Get(currentNode)->GetObject<Ipv4>();
-                Ptr<Ipv4StaticRouting> staticRouting = staticRoutingHelper.GetStaticRouting(ipv4Node);
-                
-                // 添加到目的地的路由
-                staticRouting->AddHostRouteTo(destAddr, nextHopAddr, ifIndex);
-            }
-            
-            // 创建应用
-            PacketSinkHelper sink("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), port));
-            ApplicationContainer sinkApps = sink.Install(g_nodes.Get(dst));
-            sinkApps.Start(Seconds(0.0));
-            sinkApps.Stop(Seconds(simTime));
-            
-            std::ostringstream rateStr;
-            rateStr << demand.dataRateMbps << "Mbps";
-            OnOffHelper onoff("ns3::UdpSocketFactory", InetSocketAddress(destAddr, port));
-            onoff.SetAttribute("DataRate", StringValue(rateStr.str()));
-            onoff.SetAttribute("PacketSize", UintegerValue(pktSize));
-            onoff.SetAttribute("OnTime", StringValue("ns3::ExponentialRandomVariable[Mean=1.0]"));
-            onoff.SetAttribute("OffTime", StringValue("ns3::ExponentialRandomVariable[Mean=0.5]"));
-            
-            ApplicationContainer clientApps = onoff.Install(g_nodes.Get(src));
-            clientApps.Start(Seconds(demand.startTimeSec));
-            clientApps.Stop(Seconds(demand.startTimeSec + demand.durationSec));
-            port++;
+        // 记录路径
+        std::ostringstream pathSs;
+        for (size_t j = 0; j < path.size(); j++) {
+            pathSs << GetNodeName(path[j]);
+            if (j < path.size() - 1) pathSs << "->";
         }
+        routeFile << (demand.demandId + 1) << "," << demand.srcNode << "," << demand.dstNode << ","
+                  << (path.size() - 1) << "," << pathSs.str() << "\n";
+        
+        std::cout << "  Flow " << demand.demandId << ": " << pathSs.str() << "\n";
+
+        // 获取目的地址
+        Ipv4Address destAddr = g_nodeFirstIp[dst];
+        
+        // 【关键】为路径上的每一跳设置静态路由
+        for (size_t hop = 0; hop < path.size() - 1; hop++) {
+            uint32_t currentNode = path[hop];
+            uint32_t nextNode = path[hop + 1];
+            
+            // 查找接口信息
+            auto it = g_linkInterface.find({currentNode, nextNode});
+            if (it == g_linkInterface.end()) {
+                std::cerr << "Warning: No interface found for " << currentNode << " -> " << nextNode << "\n";
+                continue;
+            }
+            
+            uint32_t ifIndex = it->second.first;
+            Ipv4Address nextHopAddr = it->second.second;
+            
+            // 获取静态路由
+            Ptr<Ipv4> ipv4Node = g_nodes.Get(currentNode)->GetObject<Ipv4>();
+            Ptr<Ipv4StaticRouting> staticRouting = staticRoutingHelper.GetStaticRouting(ipv4Node);
+            
+            // 添加到目的地的路由
+            staticRouting->AddHostRouteTo(destAddr, nextHopAddr, ifIndex);
+        }
+        
+        // 创建应用
+        PacketSinkHelper sink("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), port));
+        ApplicationContainer sinkApps = sink.Install(g_nodes.Get(dst));
+        sinkApps.Start(Seconds(0.0));
+        sinkApps.Stop(Seconds(simTime));
+        
+        std::ostringstream rateStr;
+        rateStr << demand.dataRateMbps << "Mbps";
+        OnOffHelper onoff("ns3::UdpSocketFactory", InetSocketAddress(destAddr, port));
+        onoff.SetAttribute("DataRate", StringValue(rateStr.str()));
+        onoff.SetAttribute("PacketSize", UintegerValue(1024));
+        onoff.SetAttribute("OnTime", StringValue("ns3::ExponentialRandomVariable[Mean=1.0]"));
+        onoff.SetAttribute("OffTime", StringValue("ns3::ExponentialRandomVariable[Mean=0.5]"));
+        
+        ApplicationContainer clientApps = onoff.Install(g_nodes.Get(src));
+        clientApps.Start(Seconds(demand.startTimeSec));
+        clientApps.Stop(Seconds(demand.startTimeSec + demand.durationSec));
+        port++;
     }
 
     routeFile.flush(); routeFile.close();
