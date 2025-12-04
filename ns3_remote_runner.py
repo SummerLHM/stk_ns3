@@ -8,7 +8,6 @@
 
 import os
 import time
-import json
 import shutil
 from typing import Optional, Dict
 import pandas as pd
@@ -106,37 +105,6 @@ class NS3RemoteRunner:
             print("   ❌ 未找到结果文件或文件为空")
             return None
 
-    def generate_run_instructions(self) -> str:
-        """生成Linux端运行指令"""
-        instructions = f'''
-================================================================================
-  🛰️  Linux 端运行指令
-================================================================================
-
-1. 确保共享文件夹已挂载:
-   sudo vmhgfs-fuse .host:/ /mnt/hgfs -o allow_other
-
-2. 检查输入文件:
-   ls {self.shared_folder_linux}/ns3_input/
-
-3. 进入NS3项目目录:
-   cd {self.ns3_path}/scratch/starlink
-
-4. 运行批量仿真:
-   bash run_slices.sh
-
-5. 或运行单次仿真:
-   bash run.sh --use-demands
-
-================================================================================
-'''
-        return instructions
-
-    def print_run_instructions(self):
-        """打印Linux端运行指令"""
-        print(self.generate_run_instructions())
-
-
 class NS3SimulationManager:
     """NS3仿真管理器"""
 
@@ -169,9 +137,6 @@ class NS3SimulationManager:
 
         # 复制输入文件
         self.runner.copy_input_files()
-
-        # 打印运行指令
-        self.runner.print_run_instructions()
 
     def collect_results(self, result_filename: str = "flow_results.csv") -> Optional[pd.DataFrame]:
         """收集仿真结果"""
@@ -220,58 +185,6 @@ DEFAULT_CONFIG = {
     "shared_folder_linux": "/mnt/hgfs/sat_sim",
     "ns3_path": "/home/wwq/repos_ns3/ns-3-allinone/ns-3.45"
 }
-
-
-def save_config_template():
-    """保存配置模板"""
-    config_file = "ns3_config.json"
-
-    template = {
-        "_comment": "NS3运行配置文件（共享文件夹模式）",
-        "_usage": "修改此文件后运行 main.py",
-        "shared_folder": {
-            "name": "sat_sim",
-            "windows_path": r"D:\PycharmProjects\satelliteProject\ns3_and_STK_demo",
-            "linux_path": "/mnt/hgfs/sat_sim"
-        },
-        "ns3": {
-            "version": "3.45",
-            "root_path": "/home/wwq/repos_ns3/ns-3-allinone/ns-3.45",
-            "project_path": "/home/wwq/repos_ns3/ns-3-allinone/ns-3.45/scratch/starlink"
-        },
-        "directories": {
-            "stk_output": "data",
-            "ns3_input": "ns3_input",
-            "ns3_output": "ns3_results"
-        },
-        "simulation": {
-            "sim_time": 10.0,
-            "packet_size": 1024,
-            "data_rate": "5Mbps",
-            "num_flows": 5
-        }
-    }
-
-    with open(config_file, 'w', encoding='utf-8') as f:
-        json.dump(template, f, indent=4, ensure_ascii=False)
-
-    print(f"✅ 配置模板已保存: {config_file}")
-    print("   请根据实际环境修改配置")
-
-
-def load_config() -> Dict:
-    """加载配置"""
-    config_file = "ns3_config.json"
-
-    if not os.path.exists(config_file):
-        save_config_template()
-
-    with open(config_file, 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
-    # 移除注释字段
-    return {k: v for k, v in config.items() if not k.startswith('_')}
-
 
 if __name__ == "__main__":
     # 测试
