@@ -4,9 +4,18 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GENERATED_CONFIG="$SCRIPT_DIR/data/input/generated_config.sh"
 
+#=============================================================================
 # 加载配置
-source "$SCRIPT_DIR/config.sh"
+#=============================================================================
+
+if [ ! -f "$GENERATED_CONFIG" ]; then
+    echo "❌ 配置文件不存在: $GENERATED_CONFIG"
+    exit 1
+fi
+
+source "$GENERATED_CONFIG"
 source "$SCRIPT_DIR/utils.sh"
 
 #=============================================================================
@@ -15,6 +24,8 @@ source "$SCRIPT_DIR/utils.sh"
 
 NO_BUILD=false
 NO_SYNC=false
+LINK_PARAMS_FILE="link_params.csv"
+OUTPUT_FILE="flow_results.csv"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -78,7 +89,7 @@ fi
 log_step "3/6 检查输入文件"
 
 INPUT_FILE="$INPUT_DIR/$LINK_PARAMS_FILE"
-DEMANDS_PATH="$INPUT_DIR/traffic_demands.csv"
+DEMANDS_PATH="$INPUT_DIR/$TRAFFIC_DEMANDS_FILE"
 
 if [ ! -f "$INPUT_FILE" ]; then
     log_error "链路参数文件不存在: $INPUT_FILE"
@@ -107,7 +118,7 @@ if [ "$NO_BUILD" = false ]; then
     
     cd "$NS3_ROOT"
     
-    if ./ns3 build scratch/starlink/starlink-sim 2>&1 | tee "$LOG_DIR/$BUILD_LOG"; then
+    if ./ns3 build scratch/starlink/starlink-sim 2>&1 | tee "$LOG_DIR/build.log"; then
         log_info "编译成功"
     else
         log_error "编译失败"
@@ -134,20 +145,25 @@ echo "├───────────────────────�
 printf "│ %-15s %22s │\n" "链路数量:" "$LINE_COUNT"
 printf "│ %-15s %22s │\n" "需求数量:" "$DEMAND_COUNT"
 printf "│ %-15s %22s │\n" "仿真时间:" "$SIM_TIME 秒"
+printf "│ %-15s %22s │\n" "包大小:" "$PACKET_SIZE bytes"
+printf "│ %-15s %22s │\n" "队列大小:" "$QUEUE_SIZE packets"
 echo "└─────────────────────────────────────────┘"
 echo ""
 
-# 构建运行参数
+# 构建运行参数（包含所有必需参数）
 RUN_ARGS="--linkParams=$INPUT_FILE"
 RUN_ARGS="$RUN_ARGS --demands=$DEMANDS_PATH"
 RUN_ARGS="$RUN_ARGS --output=$OUTPUT_PATH"
 RUN_ARGS="$RUN_ARGS --simTime=$SIM_TIME"
+RUN_ARGS="$RUN_ARGS --packetSize=$PACKET_SIZE"
+RUN_ARGS="$RUN_ARGS --queueSize=$QUEUE_SIZE"
+RUN_ARGS="$RUN_ARGS --monitorInterval=$MONITOR_INTERVAL"
 
 log_info "启动NS3仿真..."
 
 START_TIME=$(date +%s)
 
-if ./ns3 run "scratch/starlink/starlink-sim $RUN_ARGS" 2>&1 | tee "$LOG_DIR/$RUN_LOG"; then
+if ./ns3 run "scratch/starlink/starlink-sim $RUN_ARGS" 2>&1 | tee "$LOG_DIR/run.log"; then
     END_TIME=$(date +%s)
     DURATION=$((END_TIME - START_TIME))
     log_info "仿真完成, 耗时: ${DURATION} 秒"
